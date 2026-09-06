@@ -1,7 +1,7 @@
-/* Long Box service worker - build 2026-09-04.30
+/* Long Box service worker - build 2026-09-04.32
    The page itself is fetched network-first so that uploading a new build takes
    effect on the next load. Only assets and cover images are cache-first. */
-const SHELL = "longbox-shell-2026-09-04-30";
+const SHELL = "longbox-shell-2026-09-04-32";
 const IMGS  = "longbox-imgs-v1";
 const ASSETS = ["./manifest.json","./icon-180.png","./icon-192.png","./icon-512.png"];
 
