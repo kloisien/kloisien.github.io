@@ -164,7 +164,22 @@
   console.log("\n== new eras");
   const eras=[...new Set(DATA.map(d=>d.era))];
   t("three new eras exist", ["Infinite Frontier","Dawn of DC","DC All In"].every(e=>eras.includes(e)), eras.join("|"));
-  t("59 + 22 + 8 + 7 new entries", DATA.length===812, DATA.length);
+  // 812 added, then 3 removed: they duplicated Batman entries already in the list
+  t("809 entries after removing the three duplicate Batman books",
+    DATA.length===809, DATA.length);
+  t("the duplicate Batman books are gone",
+    [726,728,729].every(id=>!DATA.find(d=>d.id===id)));
+  t("the originals they duplicated are still there",
+    [655,656,657].every(id=>!!DATA.find(d=>d.id===id)));
+  t("no two entries claim the same isbn",
+    (()=>{const h=DATA.map(d=>d.isbn_hint).filter(Boolean);return new Set(h).size===h.length;})(),
+    "duplicates present");
+  t("the two unfixable ISBNs were removed, not guessed",
+    [354,453].every(id=>{const d=DATA.find(x=>x.id===id);
+      return !d.isbn_hint && d.confidence==="Verify" && /WRONG ISBN REMOVED/.test(d.notes);}));
+  t("Detective Comics Arkham Knight pair is cross-linked",
+    (()=>{const a=DATA.find(d=>d.id===658),b=DATA.find(d=>d.id===694);
+      return (a.overlap||[]).some(o=>o.id===694) && (b.overlap||[]).some(o=>o.id===658);})());
   const nw=DATA.filter(d=>["Infinite Frontier","Dawn of DC","DC All In"].includes(d.era));
   t("every new entry carries a GCD isbn hint", nw.every(d=>/^97[89]\d{10}$/.test(d.isbn_hint||"")));
   // an entry whose contents GCD could confirm is High, not Verify
