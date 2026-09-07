@@ -261,6 +261,12 @@
   t("it clears the selection bar rather than hiding under it",
     /\.gotop\{[^}]*bottom:70px/.test(doc) && /\.selbar\{[^}]*bottom:0/.test(doc));
 
+  console.log("\n== import feedback");
+  const im=document.getElementById("importMsg");
+  t("the import report is written onto the page, not only into an alert()",
+    im && im.hidden===false && /Imported from/.test(im.innerHTML||""),
+    im? ("hidden="+im.hidden+" html="+(im.innerHTML||"").slice(0,40)) : "no element");
+  t("it carries the counts", im && /ISBNs/.test(im.innerHTML) && /covers/.test(im.innerHTML));
   console.log("\n"+(nFail?"FAILED "+nFail+" of "+(nPass+nFail):"ALL "+nPass+" CHECKS PASSED"));
   if(H_alerts.length) console.log("\nalerts raised during boot/import:\n - "+H_alerts.join("\n - ").slice(0,900));
   process.exit(nFail?1:0);
