@@ -145,8 +145,18 @@
     Object.keys(fixed).filter(id=>DATA.find(d=>d.id===+id).issues!==fixed[id]).join(","));
   t("Nightwing Vol. 1 is retitled to the book its ISBN actually is",
     DATA.find(d=>d.id===531).title==="Nightwing Vol. 1: Better Than Batman");
-  t("the two unresolved ones stay flagged for verification",
-    [609,136].every(id=>DATA.find(d=>d.id===id).confidence==="Verify"));
+  t("Deathstroke: Arkham is resolved with the right isbn",
+    (()=>{const d=DATA.find(x=>x.id===609);
+      return d.confidence==="High" && d.issues==="#36-40" && d.isbn_hint==="9781401294311";})());
+  t("Green Lantern Corps Vol. 3 resolved from League of Comic Geeks",
+    (()=>{const d=DATA.find(x=>x.id===136);
+      return d.issues==="#15-20; Green Lantern Corps Annual #1" && d.confidence==="High"
+        && d.isbn_hint==="9781401247669" && /leagueofcomicgeeks/.test(d.notes);})());
+  t("no entry is left flagged Verify among the original 11 suspects",
+    [91,136,375,379,438,498,531,609,665,667,670].every(id=>
+      DATA.find(d=>d.id===id).confidence!=="Verify"),
+    [91,136,375,379,438,498,531,609,665,667,670].filter(id=>
+      DATA.find(d=>d.id===id).confidence==="Verify").join(","));
   t("every correction records its source and date",
     [91,375,379,531,665,667,670,609,136,498,438].every(id=>
       /2026-09-07/.test(DATA.find(d=>d.id===id).notes||"")));
@@ -154,12 +164,16 @@
   console.log("\n== new eras");
   const eras=[...new Set(DATA.map(d=>d.era))];
   t("three new eras exist", ["Infinite Frontier","Dawn of DC","DC All In"].every(e=>eras.includes(e)), eras.join("|"));
-  t("59 + 22 new entries", DATA.length===797, DATA.length);
+  t("59 + 22 + 8 + 7 new entries", DATA.length===812, DATA.length);
   const nw=DATA.filter(d=>["Infinite Frontier","Dawn of DC","DC All In"].includes(d.era));
   t("every new entry carries a GCD isbn hint", nw.every(d=>/^97[89]\d{10}$/.test(d.isbn_hint||"")));
-  t("every new entry is flagged Verify (issue ranges unknown)", nw.every(d=>d.confidence==="Verify"));
+  // an entry whose contents GCD could confirm is High, not Verify
+  t("new entries are Verify unless their contents were confirmed",
+    nw.every(d=>d.confidence==="Verify" || (d.issues||"").length>0),
+    nw.filter(d=>d.confidence!=="Verify" && !(d.issues||"").length).map(d=>d.id).join(","));
   t("every new entry records where it came from", nw.every(d=>/GCD collected editions/.test(d.notes||"")));
-  t("hardcover fallbacks say so", nw.filter(d=>/hardcover/.test(d.notes)).length===4,
+  // 9 in the three new eras; Endless Winter is the 10th but sits in Rebirth
+  t("hardcover fallbacks say so", nw.filter(d=>/hardcover/.test(d.notes)).length===9,
     nw.filter(d=>/hardcover/.test(d.notes)).length+" flagged");
   t("Absolute Edition reprints were NOT pulled in",
     !DATA.some(d=>/Red Son|Arkham Asylum|for All Seasons|Three Jokers/i.test(d.title) && d.era==="DC All In"));
@@ -177,6 +191,32 @@
     DATA.filter(d=>/Ram V\)/.test(d.title)).length===5);
   t("no duplicate isbn hints anywhere",
     (()=>{const h=DATA.map(d=>d.isbn_hint).filter(Boolean);return new Set(h).size===h.length;})());
+
+  const dcx=DATA.find(d=>d.isbn_hint==="9781779525185");
+  t("Dark Crisis records that it contains Death of the Justice League",
+    /Death of the Justice League/.test(dcx.issues) && dcx.confidence==="High");
+  t("no separate Death of the Justice League entry was invented",
+    DATA.filter(d=>/^justice league: death of/i.test(d.title)).length===0);
+  // the list already had 9 Rebirth-era Titans books, so count by the new ids
+  const tt=DATA.filter(d=>d.id>=806 && /^Titans/.test(d.title));
+  t("seven Titans books added on top of the nine already there",
+    tt.length===7 && DATA.filter(d=>/^Titans/.test(d.title)).length===16,
+    tt.length+" new, "+DATA.filter(d=>/^Titans/.test(d.title)).length+" total");
+  const ew=DATA.find(d=>/Endless Winter/.test(d.title));
+  t("Endless Winter is in, flagged as hardcover-only",
+    !!ew && /hardcover/.test(ew.notes) && ew.era==="Rebirth");
+
+  const ev=["Batman: Shadow War","Trial of the Amazons","Flashpoint Beyond","Lazarus Planet",
+            "Lazarus Planet: Revenge of the Gods","Batman / Catwoman: The Gotham War"];
+  t("the six missing events are in", ev.every(tt=>DATA.some(d=>d.title===tt)),
+    ev.filter(tt=>!DATA.some(d=>d.title===tt)).join(" | "));
+  t("the five hardcover-only events say so",
+    ev.filter(tt=>/is the hardcover/.test((DATA.find(d=>d.title===tt)||{}).notes||"")).length===5);
+  t("Flashpoint Beyond is not flagged hardcover (it has a TP)",
+    !/is the hardcover/.test(DATA.find(d=>d.title==="Flashpoint Beyond").notes));
+  t("every hardcover fallback in the whole list is flagged",
+    DATA.filter(d=>/is the hardcover/.test(d.notes||"")).length===10,
+    DATA.filter(d=>/is the hardcover/.test(d.notes||"")).length+" flagged");
 
   console.log("\n== control bar layout");
   const doc=require("fs").readFileSync(process.env.LB_HTML,"utf8");
