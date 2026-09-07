@@ -5,7 +5,10 @@ function H_el(id){
     id, tagName:"DIV", dataset:{}, style:{}, children:[],
     innerHTML:"", outerHTML:"", textContent:"", value:"", className:"",
     hidden:false, disabled:false, checked:false, scrollTop:0, parentNode:null,
-    classList:{add(){},remove(){},toggle(){},contains(){return false}},
+    classList:(()=>{const set=new Set();return{
+      add(c){set.add(c)}, remove(c){set.delete(c)},
+      toggle(c,on){ if(on===undefined){set.has(c)?set.delete(c):set.add(c);} else {on?set.add(c):set.delete(c);} return set.has(c); },
+      contains(c){return set.has(c)} };})(),
     appendChild(c){c.parentNode=e;e.children.push(c);return c},
     removeChild(){}, remove(){}, click(){}, focus(){}, blur(){},
     setAttribute(k,v){e["attr_"+k]=v}, getAttribute(k){return e["attr_"+k]},
@@ -56,6 +59,7 @@ global.Image = class {
   }
   get src(){ return this._src; }
 };
+global.scrollY = 0;
 global.addEventListener = () => {};
 global.removeEventListener = () => {};
 global.dispatchEvent = () => true;

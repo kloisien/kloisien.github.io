@@ -130,6 +130,54 @@
   t("Year of the Villain #1 points at Hell Arisen, not an omnibus",
     !!yotv1 && (yotv1.overlap||[]).some(o=>o.id===651));
 
+  console.log("\n== verified corrections");
+  const ww=DATA.find(d=>d.id===438);
+  t("Wonder Woman Vol. 4 issue range matches dc.com",
+    ww.issues==="#16, 18, 20, 22, 24; Wonder Woman Annual #1 (Rucka story)", ww.issues);
+  t("and it is no longer flagged for verification", ww.confidence==="High", ww.confidence);
+  t("the source of the correction is in the note", /dc\.com 2026-09-07/.test(ww.notes||""));
+
+  const fixed={91:"#0, 8-13; Resurrection Man #9",375:"#13-18",379:"#13-26",
+    531:"Nightwing: Rebirth #1; #1-4, 7-8",665:"#74-81",667:"#76-81",
+    670:"#53-57; Aquaman Annual #2"};
+  t("all seven corrected ranges are in place",
+    Object.keys(fixed).every(id=>DATA.find(d=>d.id===+id).issues===fixed[id]),
+    Object.keys(fixed).filter(id=>DATA.find(d=>d.id===+id).issues!==fixed[id]).join(","));
+  t("Nightwing Vol. 1 is retitled to the book its ISBN actually is",
+    DATA.find(d=>d.id===531).title==="Nightwing Vol. 1: Better Than Batman");
+  t("the two unresolved ones stay flagged for verification",
+    [609,136].every(id=>DATA.find(d=>d.id===id).confidence==="Verify"));
+  t("every correction records its source and date",
+    [91,375,379,531,665,667,670,609,136,498,438].every(id=>
+      /2026-09-07/.test(DATA.find(d=>d.id===id).notes||"")));
+
+  console.log("\n== new eras");
+  const eras=[...new Set(DATA.map(d=>d.era))];
+  t("three new eras exist", ["Infinite Frontier","Dawn of DC","DC All In"].every(e=>eras.includes(e)), eras.join("|"));
+  t("59 + 22 new entries", DATA.length===797, DATA.length);
+  const nw=DATA.filter(d=>["Infinite Frontier","Dawn of DC","DC All In"].includes(d.era));
+  t("every new entry carries a GCD isbn hint", nw.every(d=>/^97[89]\d{10}$/.test(d.isbn_hint||"")));
+  t("every new entry is flagged Verify (issue ranges unknown)", nw.every(d=>d.confidence==="Verify"));
+  t("every new entry records where it came from", nw.every(d=>/GCD collected editions/.test(d.notes||"")));
+  t("hardcover fallbacks say so", nw.filter(d=>/hardcover/.test(d.notes)).length===4,
+    nw.filter(d=>/hardcover/.test(d.notes)).length+" flagged");
+  t("Absolute Edition reprints were NOT pulled in",
+    !DATA.some(d=>/Red Son|Arkham Asylum|for All Seasons|Three Jokers/i.test(d.title) && d.era==="DC All In"));
+
+  const fs=DATA.filter(d=>/^14\. Future State/.test(d.phase));
+  t("Future State is its own phase, ahead of Infinite Frontier",
+    fs.length===9 && fs.every(d=>d.era==="Infinite Frontier"), fs.length+" entries");
+  t("the three later phases were renumbered to 15/16/17",
+    ["15. Infinite Frontier (2021-2023)","16. Dawn of DC (2023-2024)",
+     "17. DC All In / Absolute Universe (2024- )"].every(ph=>DATA.some(d=>d.phase===ph)));
+  t("Death Metal tie-ins joined the existing Death Metal phase",
+    DATA.filter(d=>/Death Metal/.test(d.title)).every(d=>d.era==="Rebirth"));
+  t("both Detective Comics runs are attributed in the title",
+    DATA.filter(d=>/Tamaki\)/.test(d.title)).length===4 &&
+    DATA.filter(d=>/Ram V\)/.test(d.title)).length===5);
+  t("no duplicate isbn hints anywhere",
+    (()=>{const h=DATA.map(d=>d.isbn_hint).filter(Boolean);return new Set(h).size===h.length;})());
+
   console.log("\n== control bar layout");
   const doc=require("fs").readFileSync(process.env.LB_HTML,"utf8");
   t("Clear all and sort sit together in a right-hugging tail",
@@ -145,6 +193,18 @@
     /id="q" type="search"[\s\S]{0,140}id="qc" type="search"[\s\S]{0,160}<div class="tail">/.test(doc));
   t("Fill covers from ISBNs button removed", !/id="fromisbn"/.test(doc));
   t("Storage check button removed", !/id="diag"/.test(doc));
+  t("the era filter offers the new eras",
+    /<option>Infinite Frontier<\/option>/.test(doc) && /<option>DC All In<\/option>/.test(doc));
+  t("the header no longer claims the list stops at 2021", !/2011&ndash;2021/.test(doc));
+
+  console.log("\n== back to top");
+  const gt=document.getElementById("gotop");
+  t("button exists in the markup", /id="gotop"/.test(doc));
+  t("hidden at the top of the page", (window.scrollY=0, syncGoTop(), !gt.classList.contains("on")));
+  t("shown once scrolled", (window.scrollY=900, syncGoTop(), gt.classList.contains("on")));
+  t("hidden again when scrolled back", (window.scrollY=10, syncGoTop(), !gt.classList.contains("on")));
+  t("it clears the selection bar rather than hiding under it",
+    /\.gotop\{[^}]*bottom:70px/.test(doc) && /\.selbar\{[^}]*bottom:0/.test(doc));
 
   console.log("\n"+(nFail?"FAILED "+nFail+" of "+(nPass+nFail):"ALL "+nPass+" CHECKS PASSED"));
   if(H_alerts.length) console.log("\nalerts raised during boot/import:\n - "+H_alerts.join("\n - ").slice(0,900));
