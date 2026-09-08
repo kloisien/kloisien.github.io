@@ -570,6 +570,53 @@
     [269,820,339,320,665].every(id=>/NUMBERING|printed/i.test(DATA.find(d=>d.id===id).notes||"")),
     [269,820,339,320,665].filter(id=>!/NUMBERING|printed/i.test(DATA.find(d=>d.id===id).notes||"")).join(","));
 
+  console.log("\n== carrying progress between two devices");
+  /* No server: the site is public, so a write credential in the page would be
+     public too. The transfer is a file, and the import MERGES per book by
+     timestamp - that is what makes importing an older file harmless. */
+  const doc6=require("fs").readFileSync(process.env.LB_HTML,"utf8");
+  t("every write stamps the entry with a time", /function stamp\(r\)\{ r\.t = Date\.now\(\);/.test(doc6));
+  t("patch stamps", /const r=rec\(id\); r\[field\]=val; stamp\(r\);/.test(doc6));
+  t("bulk apply stamps", /r\[field\]=val; stamp\(r\); state\[id\]=r;/.test(doc6));
+  t("drawer edits stamp", /r\.edits=edits; stamp\(r\);/.test(doc6));
+  t("the export carries a timestamp, a device and the build",
+    /_longbox:"progress"[\s\S]{0,200}savedAt:now\.toISOString\(\)/.test(doc6));
+  t("the sync bookkeeping stays out of state",
+    /const SYNCKEY = "longbox\.sync"/.test(doc6) && !/state\._meta/.test(doc6));
+
+  // the merge itself, exercised for real
+  const keep = JSON.stringify(state);
+  state = {};
+  state[9001] = {own:"Owned", status:"Read", t: 5000};      // this device, older
+  state[9002] = {own:"Owned", status:"Read", t: 9000};      // this device, newer
+  state[9003] = {own:"Wishlist", t: 7000};                  // only here
+  const incoming = {
+    9001: {own:"Owned", status:"Reading", t: 8000},         // file is newer -> wins
+    9002: {own:"", status:"Unread", t: 1000},               // file is older -> loses
+    9004: {own:"Owned", status:"Unread", t: 8500},          // only in the file -> added
+    __test: {junk:true}, notanid: {junk:true}
+  };
+  const res = mergeProgress(incoming);
+  t("a newer file entry wins", state[9001].status==="Reading", JSON.stringify(state[9001]));
+  t("an older file entry loses", state[9002].status==="Read", JSON.stringify(state[9002]));
+  t("a book only on this device survives", state[9003] && state[9003].own==="Wishlist");
+  t("a book only in the file is added", state[9004] && state[9004].own==="Owned");
+  t("the merge counts what it did",
+    res.updated===1 && res.added===1 && res.kept===1, JSON.stringify(res));
+  t("non-numeric keys are ignored", !state.__test && !state.notanid);
+  t("nothing is ever deleted by a merge", Object.keys(state).length===4,
+    Object.keys(state).join(","));
+  // an older export with no timestamps must not clobber timestamped local data
+  const wasStatus = state[9001].status;
+  mergeProgress({9001:{own:"Owned", status:"Skipped"}});
+  t("a file with no timestamps cannot overwrite stamped local data",
+    state[9001].status===wasStatus, state[9001].status);
+  /* after the merge: 9001 t=8000 (file won), 9002 t=9000 (local kept),
+     9003 t=7000, 9004 t=8500 -> the newest stamp is 9002's 9000 */
+  t("newestStamp finds the latest change", newestStamp(state)===9000, String(newestStamp(state)));
+  t("entryCount ignores the probe key", entryCount({1:{},2:{},__test:{}})===2);
+  state = JSON.parse(keep);
+
   console.log("\n== tap a series to filter by it");
   const doc4=require("fs").readFileSync(process.env.LB_HTML,"utf8");
   t("rows carry a clickable series", /class="serlink" data-series=/.test(rowHTML(view(DATA[8]))));
