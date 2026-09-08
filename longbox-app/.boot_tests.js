@@ -542,8 +542,10 @@
     ["Detective Comics (New 52)","Detective Comics (Rebirth)",
      "Batman: Detective Comics (Tomasi)","Batman: Detective Comics (Tamaki)",
      "Batman: Detective Comics (Ram V)"].every(s2=>DATA.some(d=>d.series===s2)));
-  t("no entry is left on the bare 'Detective Comics' label except the #1000 one-shot",
-    DATA.filter(d=>d.series==="Detective Comics").every(d=>/#1000/.test(d.title)));
+  /* The bare label is gone entirely now - the #1000 Deluxe became
+     "Detective Comics (2019)" when every multi-run label got a tag. */
+  t("nothing sits on the bare 'Detective Comics' label",
+    !DATA.some(d=>d.series==="Detective Comics"));
   t("the DeConnick Aquaman run is its own series",
     DATA.filter(d=>d.series==="Aquaman (2019)").length===4 &&
     DATA.filter(d=>d.series==="Aquaman (Rebirth)").length===6);
@@ -552,10 +554,10 @@
   /* The complete six-volume New Guardians run, from Klaus's LoCG shelf. The
      list had 1, 2 and 5 - and 5 was labelled 4. */
   t("New Guardians runs 1-6 under one series label",
-    (()=>{const ng=DATA.filter(d=>d.series==="Green Lantern: New Guardians");
+    (()=>{const ng=DATA.filter(d=>/^Green Lantern: New Guardians\b/.test(d.series));
       return ng.length===6 && [1,2,3,4,5,6].every(n=>
         ng.some(d=>new RegExp("Vol\\. "+n+":").test(d.title)));})(),
-    DATA.filter(d=>d.series==="Green Lantern: New Guardians").length+" volumes");
+    DATA.filter(d=>/^Green Lantern: New Guardians\b/.test(d.series)).length+" volumes");
   t("The Godkillers is Vol. 5 and collects #28-34",
     (()=>{const d=DATA.find(x=>x.id===207);
       return /Vol\. 5: The Godkillers/.test(d.title) && /#28-34/.test(d.issues);})());
@@ -651,7 +653,7 @@
     (()=>{const d=DATA.find(x=>/Surprise, Surprise/.test(x.title));
       return d && String(rec(d.id).isbn||d.isbn_hint)==="9781401275266";})());
   t("Green Lantern Corps is complete 1-6",
-    (()=>{const v=DATA.filter(d=>d.series==="Green Lantern Corps")
+    (()=>{const v=DATA.filter(d=>/^Green Lantern Corps\b/.test(d.series))
             .map(d=>+(/\bVol\.?\s*(\d+)/i.exec(d.title)||[0,0])[1]).filter(Boolean);
       return [1,2,3,4,5,6].every(n=>v.indexOf(n)>=0);})());
   /* Superman restarts at Vol. 1 with Before Truth - the list used to number
@@ -730,6 +732,39 @@
     DATA.find(d=>d.id===332).issues==="#48-52");
   t("the help text explains the three tags", /High means the ISBN resolves/.test(doc7));
 
+  console.log("\n== every series label says which run it is");
+  /* Klaus: "add either the year or the era so I know which one we are referring
+     to." A bare "Batman" held Snyder's New 52 run and Zdarsky's 2021 run in one
+     filter entry. Labels split on 24 months of silence; the tag is the era when
+     the run sits in one, the start year when it does not. */
+  t("no multi-entry series label is left untagged",
+    (()=>{const cnt={},bad=[];
+      DATA.forEach(d=>cnt[d.series]=(cnt[d.series]||0)+1);
+      Object.keys(cnt).forEach(k=>{ if(cnt[k]>1 && !/\([^)]+\)\s*$/.test(k)) bad.push(k); });
+      window.__tagBad=bad; return bad.length===0;})(),
+    (window.__tagBad||[]).join(" ; "));
+  t("Batman is split into its two runs",
+    ["Batman (New 52)","Batman (2021)"].every(s2=>DATA.some(d=>d.series===s2)) &&
+    !DATA.some(d=>d.series==="Batman"));
+  t("Nightwing too",
+    ["Nightwing (New 52)","Nightwing (2021)"].every(s2=>DATA.some(d=>d.series===s2)) &&
+    !DATA.some(d=>d.series==="Nightwing"));
+  t("a tag never merges two different runs",
+    (()=>{const by={};
+      DATA.forEach(d=>{ (by[d.series]=by[d.series]||new Set()).add(d.era); });
+      /* one label may legitimately span adjacent eras (a run that crossed one),
+         but never four */
+      return Object.keys(by).every(k=>by[k].size<=3);})(),
+    Object.keys((()=>{const b={};DATA.forEach(d=>{(b[d.series]=b[d.series]||new Set()).add(d.era);});return b;})())
+      .filter(k=>{const b={};DATA.forEach(d=>{(b[d.series]=b[d.series]||new Set()).add(d.era);});return b[k].size>3;}).join(","));
+  t("The Man of Steel did not get folded into the Tomasi Superman run",
+    DATA.find(d=>d.id===561).series==="The Man of Steel (2018)");
+  t("unique one-shots were left bare on purpose",
+    DATA.some(d=>d.series==="Flashpoint") && DATA.filter(d=>d.series==="Flashpoint").length===1);
+  t("every retagged entry says why",
+    DATA.filter(d=>/Series label tagged 2026-09-08/.test(d.notes||""))
+        .every(d=>/\([^)]+\)\s*$/.test(d.series)));
+
   console.log("\n== tap a series to filter by it");
   const doc4=require("fs").readFileSync(process.env.LB_HTML,"utf8");
   t("rows carry a clickable series", /class="serlink" data-series=/.test(rowHTML(view(DATA[8]))));
@@ -741,7 +776,8 @@
   ["q","qc","fEra","fPhase","fPrio","fEvent","fScore"].forEach(i2=>{
     const e2=document.getElementById(i2); if(e2) e2.value="";});
   // the filter itself must work once a series is chosen
-  const someSeries=DATA.find(d=>d.series==="Batgirl").series;
+  // "Batgirl" is now "Batgirl (New 52)" - pick whatever label it carries
+  const someSeries=DATA.find(d=>/^Batgirl\b/.test(d.series)).series;
   fs2.innerHTML='<option value=""></option><option>'+someSeries+'</option>';
   fs2.value=someSeries;
   const onlyBg=DATA.filter(pass);
