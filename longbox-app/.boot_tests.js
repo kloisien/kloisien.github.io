@@ -670,6 +670,41 @@
   t("every added volume has an issue list and a date",
     DATA.filter(d=>d.id>=826).every(d=>(d.issues||"").trim() && (d.mdate||"").trim()));
 
+  console.log("\n== the Med tag now means something");
+  /* "Med" was a leftover from the first build - "I am medium-confident this
+     book belongs in the reading order" - and nothing had re-examined it since.
+     232 entries were re-tested the way the Verify pass tested its own; 176
+     passed all three checks and 6 more had a placeholder replaced by a real
+     issue list. What is left is genuinely uncertain, not just unexamined. */
+  const doc7=require("fs").readFileSync(process.env.LB_HTML,"utf8");
+  t("Med is down to 50 or fewer",
+    DATA.filter(d=>d.confidence==="Med").length<=50,
+    DATA.filter(d=>d.confidence==="Med").length+" Med");
+  t("High is now the large majority",
+    DATA.filter(d=>d.confidence==="High").length>=750,
+    DATA.filter(d=>d.confidence==="High").length+" High");
+  t("every promotion says why",
+    DATA.filter(d=>/Promoted from Med/.test(d.notes||"")).every(d=>
+      d.confidence==="High" && /reprint records/.test(d.notes)));
+  /* The "MISSING FROM YOUR LIST" notes came from a one-off comparison against
+     an old ComicGeeks export. They meant "you did not own this in September",
+     which the Own column tracks - and they polluted the search index, since
+     search covers notes. */
+  t("the stale ComicGeeks notes are gone",
+    !DATA.some(d=>/MISSING FROM YOUR LIST/.test(d.notes||"")));
+  /* Six issue fields held a description instead of a list. */
+  t("no issue field is a placeholder any more",
+    !DATA.some(d=>/^(One-shots|Kirby centenary one-shots|Assorted line-wide tie-in issues|10 two-issue minis)$/.test((d.issues||"").trim())),
+    DATA.filter(d=>/^(One-shots|10 two-issue minis)$/.test((d.issues||"").trim())).map(d=>d.id).join(","));
+  t("the eight filled ones name their titles and are High",
+    [313,314,315,316,484,518,715,716].every(id=>{const d=DATA.find(x=>x.id===id);
+      return d.confidence==="High" && (d.issues||"").indexOf("#")>=0
+        && /ISSUE LIST FILLED/.test(d.notes||"");}));
+  t("Detective Comics Vol. 8 and 9 no longer both claim #47",
+    DATA.find(d=>d.id===331).issues==="#41-47" &&
+    DATA.find(d=>d.id===332).issues==="#48-52");
+  t("the help text explains the three tags", /High means the ISBN resolves/.test(doc7));
+
   console.log("\n== tap a series to filter by it");
   const doc4=require("fs").readFileSync(process.env.LB_HTML,"utf8");
   t("rows carry a clickable series", /class="serlink" data-series=/.test(rowHTML(view(DATA[8]))));
