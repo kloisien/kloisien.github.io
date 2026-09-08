@@ -677,15 +677,40 @@
      passed all three checks and 6 more had a placeholder replaced by a real
      issue list. What is left is genuinely uncertain, not just unexamined. */
   const doc7=require("fs").readFileSync(process.env.LB_HTML,"utf8");
-  t("Med is down to 50 or fewer",
-    DATA.filter(d=>d.confidence==="Med").length<=50,
+  t("Med is down to 21 or fewer",
+    DATA.filter(d=>d.confidence==="Med").length<=21,
     DATA.filter(d=>d.confidence==="Med").length+" Med");
   t("High is now the large majority",
-    DATA.filter(d=>d.confidence==="High").length>=750,
+    DATA.filter(d=>d.confidence==="High").length>=785,
     DATA.filter(d=>d.confidence==="High").length+" High");
+  /* Klaus asked whether the crossover collections were really paperbacks. Four
+     were hardcovers and #188 was a hardcover ONE-SHOT in GCD, which is also why
+     the very first report called its ISBN missing. TPBs only. */
+  t("the five crossover hardcovers were swapped for paperbacks",
+    (()=>{const w={61:"9781401242527",103:"9781401246990",126:"9781401246129",
+                   163:"9781401246464",188:"9781401253370"};
+      return Object.keys(w).every(id=>String(rec(+id).isbn||DATA.find(d=>d.id===+id).isbn_hint)===w[id]);})(),
+    [61,103,126,163,188].map(id=>id+":"+String(rec(id).isbn||DATA.find(d=>d.id===id).isbn_hint)).join(" "));
+  t("and each says it used to be a hardcover",
+    [61,103,126,163,188].every(id=>/HARDCOVER -> PAPERBACK/.test(DATA.find(d=>d.id===id).notes||"")));
+  /* Six entries looked like they named issues that do not exist. The entry's own
+     series label carries the era in brackets - "Nightwing (Rebirth)" - which is a
+     perfect match for DC's one-issue prologue "Nightwing: Rebirth" and a poor one
+     for the ongoing. The comparator was reading the wrong series. */
+  t("Shade Vol. 2 stops at #12, where the series ended",
+    DATA.find(d=>d.id===479).issues==="#7-12");
+  t("the Rebirth Vol. 1s kept their real issue ranges",
+    [388,395,405,417].every(id=>{const d=DATA.find(x=>x.id===id);
+      return d.confidence==="High" && /#1-\d/.test(d.issues);}),
+    [388,395,405,417].map(id=>id+":"+DATA.find(d=>d.id===id).issues).join(" | "));
+  /* The promotions came in three flavours: the range agrees with GCD, GCD's
+     index is the incomplete side, or the earlier mismatch was the comparator
+     reading the wrong series. Each note names which. */
   t("every promotion says why",
     DATA.filter(d=>/Promoted from Med/.test(d.notes||"")).every(d=>
-      d.confidence==="High" && /reprint records/.test(d.notes)));
+      d.confidence==="High" && /(reprint records|reprint index|comparator)/.test(d.notes)),
+    DATA.filter(d=>/Promoted from Med/.test(d.notes||"") &&
+      !/(reprint records|reprint index|comparator)/.test(d.notes)).map(d=>d.id).join(","));
   /* The "MISSING FROM YOUR LIST" notes came from a one-off comparison against
      an old ComicGeeks export. They meant "you did not own this in September",
      which the Own column tracks - and they polluted the search index, since
