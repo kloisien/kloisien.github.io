@@ -155,7 +155,9 @@
       return d.confidence==="High" && d.issues==="#36-40" && d.isbn_hint==="9781401294311";})());
   t("Green Lantern Corps Vol. 3 resolved from League of Comic Geeks",
     (()=>{const d=DATA.find(x=>x.id===136);
-      return d.issues==="#15-20; Green Lantern Corps Annual #1" && d.confidence==="High"
+      /* the Green Lantern #20 crossover chapter was added 2026-09-08 from GCD */
+      return d.issues==="#15-20; Green Lantern Corps Annual #1; Green Lantern #20"
+        && d.confidence==="High"
         && d.isbn_hint==="9781401247669" && /leagueofcomicgeeks/.test(d.notes);})());
   t("no entry is left flagged Verify among the original 11 suspects",
     [91,136,375,379,438,388,609,665,667,670].every(id=>
