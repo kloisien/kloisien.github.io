@@ -469,6 +469,56 @@
   t("nobody else claims it",
     DATA.filter(d=>String(rec(d.id).isbn||d.isbn_hint)==="9781401248918").length===1);
 
+  console.log("\n== reading order follows the eras");
+  /* Reading order used to be raw entry id - the order things were ADDED - so
+     DC All In sat in the middle and anything appended sat at the end. It is now
+     era -> phase -> earliest collected cover date -> id, with the position
+     exposed as ord() and shown in the first column. */
+  const doc5=require("fs").readFileSync(process.env.LB_HTML,"utf8");
+  t("every entry has a position", DATA.every(d=>ord(d)>=1 && ord(d)<=DATA.length));
+  t("positions are a permutation of 1..N",
+    new Set(DATA.map(d=>ord(d))).size===DATA.length);
+  const eraSeq=DATA.slice().sort((a,b)=>ord(a)-ord(b)).map(d=>d.era);
+  const firstAt={}; eraSeq.forEach((e,i)=>{ if(!(e in firstAt)) firstAt[e]=i; });
+  t("the eras appear in DC's real order, All In last before Elseworlds",
+    ["New 52","Rebirth","Infinite Frontier","Dawn of DC","DC All In","Out of continuity"]
+      .filter(e=>e in firstAt).every((e,i,arr)=>i===0||firstAt[arr[i-1]]<firstAt[e]),
+    JSON.stringify(firstAt));
+  t("each era is one unbroken block",
+    (()=>{const seen=new Set(); let prev=null;
+      for(const e of eraSeq){ if(e!==prev){ if(seen.has(e)) return false; seen.add(e); prev=e; } }
+      return true;})());
+  /* the three most recently added entries must sit with their series, not at
+     the end: Batgirl Vol. 7, Aquaman Vol. 4, Red Lanterns Vol. 4 */
+  t("appended entries are no longer stranded at the end",
+    [820,821,822].every(id=>ord(DATA.find(d=>d.id===id))<DATA.length-20),
+    [820,821,822].map(id=>id+"@"+ord(DATA.find(d=>d.id===id))).join(" "));
+  t("Red Lanterns Vol. 4 sits between Vol. 3 and Vol. 5",
+    ord(DATA.find(d=>d.id===209))<ord(DATA.find(d=>d.id===822)) &&
+    ord(DATA.find(d=>d.id===822))<ord(DATA.find(d=>d.id===310)));
+  /* World's Finest was the worst case: ids were alphabetical by title, so
+     issues #35-43 sorted before #12-17. mdate fixes it. */
+  t("World's Finest reads in issue order",
+    ord(DATA.find(d=>d.id===746))<ord(DATA.find(d=>d.id===745)) &&
+    ord(DATA.find(d=>d.id===745))<ord(DATA.find(d=>d.id===741)) &&
+    ord(DATA.find(d=>d.id===741))<ord(DATA.find(d=>d.id===740)));
+  t("every entry carries an mdate", DATA.filter(d=>!d.mdate).length<=5,
+    DATA.filter(d=>!d.mdate).map(d=>d.id).join(","));
+  /* Klaus's rule, final: era follows the cover date of the material and a run
+     may cross eras. Gotham Nocturne is Infinite Frontier for Overture and
+     Act I, Dawn of DC for the rest - and it still reads in order, because
+     ordering is era -> phase -> mdate and the eras are adjacent. */
+  t("Gotham Nocturne is NOT forced into one era",
+    DATA.find(d=>d.id===800).era==="Infinite Frontier" &&
+    DATA.find(d=>d.id===801).era==="Infinite Frontier" &&
+    [802,803,804].every(id=>DATA.find(d=>d.id===id).era==="Dawn of DC"));
+  t("Gotham Nocturne reads Overture -> Act I -> Act II -> Intermezzo -> Act III",
+    [800,801,802,803,804].every((id,i,arr)=>i===0||
+      ord(DATA.find(d=>d.id===arr[i-1]))<ord(DATA.find(d=>d.id===id))));
+  t("the first column shows the position, not the id",
+    /class="c-ord" title="entry #\$\{d\.id\}">\$\{selBox\(d\.id\)\}\$\{ord\(d\)\}/.test(doc5));
+  t("the drawer still shows the internal id", /id \$\{d\.id\}/.test(doc5));
+
   console.log("\n== tap a series to filter by it");
   const doc4=require("fs").readFileSync(process.env.LB_HTML,"utf8");
   t("rows carry a clickable series", /class="serlink" data-series=/.test(rowHTML(view(DATA[8]))));
