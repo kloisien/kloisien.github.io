@@ -16,7 +16,7 @@
   console.log("\n== import keeps candidates alongside a cover URL (the bug)");
   const DEAD="https://images.isbndb.com/covers/original/1.jpg?key=expired";
   const GCD ="https://files1.comics.org/img/gcd/covers_by_id/1657/w400/1657194.jpg";
-  await applyDetails({ "1":{ isbn:"9781401233372", pages:176, cover:DEAD,
+  await applyDetails({ "1":{ isbn:"9780000000001", pages:176, cover:DEAD,
                              cover_candidates:[GCD], description:"x" } }, "harness");
   const r1=rec(1);
   t("cover imported", r1.cover===DEAD, r1.cover);
@@ -86,8 +86,8 @@
   const all=DATA.filter(pass).length;
   t("no filter passes everything", all===DATA.length, all+" of "+DATA.length);
   // rec() reads state, so give two entries an isbn and one a short page count
-  state[201]=Object.assign(rec(201),{isbn:"9781401233372"});
-  state[202]=Object.assign(rec(202),{isbn:"9781401237882",pages:32});
+  state[201]=Object.assign(rec(201),{isbn:"9780000000201"});   // fake, must not collide
+  state[202]=Object.assign(rec(202),{isbn:"9780000000202",pages:32});  // fake
   // entry 1 also carries an isbn from the import test above, so compare against
   // what state actually holds rather than a hardcoded count
   const expect=DATA.filter(d=>rec(d.id).isbn).map(d=>d.id).sort((a,b)=>a-b);
@@ -165,8 +165,8 @@
   const eras=[...new Set(DATA.map(d=>d.era))];
   t("three new eras exist", ["Infinite Frontier","Dawn of DC","DC All In"].every(e=>eras.includes(e)), eras.join("|"));
   // 812 added, then 3 removed: they duplicated Batman entries already in the list
-  t("809 entries after removing the three duplicate Batman books",
-    DATA.length===809, DATA.length);
+  // 809 after the three duplicate Batman books came out, +1 for Batgirl: Family Business
+  t("810 entries", DATA.length===810, DATA.length);
   t("the duplicate Batman books are gone",
     [726,728,729].every(id=>!DATA.find(d=>d.id===id)));
   t("the originals they duplicated are still there",
@@ -204,8 +204,14 @@
   t("both Detective Comics runs are attributed in the title",
     DATA.filter(d=>/Tamaki\)/.test(d.title)).length===4 &&
     DATA.filter(d=>/Ram V\)/.test(d.title)).length===5);
-  t("no duplicate isbn hints anywhere",
-    (()=>{const h=DATA.map(d=>d.isbn_hint).filter(Boolean);return new Set(h).size===h.length;})());
+  /* This used to check isbn_hint only, so #178 and #184 shared an ISBN for a
+     day - theirs lived in details.json. Check the effective ISBN instead:
+     whatever rec() ends up with after the import. */
+  const eff=DATA.map(d=>String(rec(d.id).isbn||d.isbn_hint||"")).filter(Boolean);
+  t("no two entries share an ISBN, from either source",
+    new Set(eff).size===eff.length,
+    (()=>{const c={};eff.forEach(k=>c[k]=(c[k]||0)+1);
+      return Object.keys(c).filter(k=>c[k]>1).join(",")||"none";})());
 
   const dcx=DATA.find(d=>d.isbn_hint==="9781779525185");
   t("Dark Crisis records that it contains Death of the Justice League",
@@ -341,6 +347,54 @@
     (()=>{const h=DATA.map(d=>d.isbn_hint).filter(Boolean);return new Set(h).size===h.length;})());
   t("the malformed GCD ISBN was cleaned to 13 digits",
     /^97[89]\d{10}$/.test(DATA.find(d=>d.id===595).isbn_hint));
+
+  console.log("\n== the Batgirl correction");
+  const mind=DATA.find(d=>d.id===339);
+  t("Fugue is gone; #339 is Mindfields",
+    mind.title==="Batgirl Vol. 8: Mindfields" && mind.isbn_hint==="9781401262693"
+    && mind.issues==="#46-52; Batgirl: Endgame #1" && mind.confidence==="High");
+  const fam=DATA.find(d=>d.title==="Batgirl Vol. 7: Family Business");
+  t("Family Business was added", !!fam && fam.isbn_hint==="9781401259662"
+    && fam.issues==="#41-45; Batgirl Annual #3");
+  t("both sit in the same phase as the rest of that run",
+    !!fam && fam.phase===mind.phase && fam.era===mind.era);
+  t("no book called Fugue survives anywhere",
+    !DATA.some(d=>/fugue/i.test(d.title)));
+  t("ISBNs are still unique after both changes",
+    (()=>{const h=DATA.map(d=>d.isbn_hint).filter(Boolean);return new Set(h).size===h.length;})());
+
+  console.log("\n== what validate_gcd.py found");
+  const swaps={10:"9781401237844",115:"9781401246280",253:"9781401258467",337:"9781401264796"};
+  t("four more hardcovers swapped for their paperbacks",
+    Object.keys(swaps).every(id=>DATA.find(d=>d.id===+id).isbn_hint===swaps[id]),
+    Object.keys(swaps).filter(id=>DATA.find(d=>d.id===+id).isbn_hint!==swaps[id]).join(","));
+  t("Villains Month no longer borrows Forever Evil's ISBN",
+    !DATA.find(d=>d.id===184).isbn_hint &&
+    /DUPLICATE ISBN REMOVED/.test(DATA.find(d=>d.id===184).notes));
+  t("Forever Evil keeps it", DATA.find(d=>d.id===178).isbn_hint==="9781401248918");
+
+  console.log("\n== tap a series to filter by it");
+  const doc4=require("fs").readFileSync(process.env.LB_HTML,"utf8");
+  t("rows carry a clickable series", /class="serlink" data-series=/.test(rowHTML(view(DATA[8]))));
+  t("the drawer does too", /class="serlink" data-series=/.test(drawerHTML(DATA[8])));
+  t("it is wired up", /e\.target\.closest\("\[data-series\]"\)/.test(doc4));
+  t("selection mode suppresses it", /if\(!a \|\| selMode\) return;/.test(doc4));
+  const fs2=document.getElementById("fSeries");
+  fs2.value=""; fOwnSel.clear(); fStatusSel.clear();
+  ["q","qc","fEra","fPhase","fPrio","fEvent","fScore","fIsbn"].forEach(i2=>{
+    const e2=document.getElementById(i2); if(e2) e2.value="";});
+  // the filter itself must work once a series is chosen
+  const someSeries=DATA.find(d=>d.series==="Batgirl").series;
+  fs2.innerHTML='<option value=""></option><option>'+someSeries+'</option>';
+  fs2.value=someSeries;
+  const onlyBg=DATA.filter(pass);
+  t("choosing a series filters to it",
+    onlyBg.length>0 && onlyBg.every(d=>d.series===someSeries), onlyBg.length+" rows");
+  fs2.value="";
+  t("clearing it restores the list", DATA.filter(pass).length===DATA.length);
+  const bg=[269,820,339].map(id=>DATA.find(d=>d.id===id));
+  t("the printed volume numbers are recorded on all three Batgirl books",
+    bg.every(d=>/Numbering note/.test(d.notes||"")));
 
   console.log("\n== import feedback");
   const im=document.getElementById("importMsg");
