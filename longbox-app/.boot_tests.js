@@ -107,13 +107,31 @@
   const dangling=[];
   DATA.forEach(d=>(d.overlap||[]).forEach(o=>{ if(!ids.has(o.id)) dangling.push(d.id+"->"+o.id); }));
   t("no dangling overlap links at all", dangling.length===0, dangling.join(" "));
-  const dc=DATA.find(d=>d.id===708), dctpb=DATA.find(d=>d.id===700);
-  t("DCeased: A Good Day to Die points at the DCeased tpb",
-    !!dc && (dc.overlap||[]).some(o=>o.id===700));
-  t("and the tpb points back", !!dctpb && (dctpb.overlap||[]).some(o=>o.id===708));
+  /* #708 A Good Day to Die is gone - Klaus confirmed it is collected inside the
+     DCeased trade, so the cross-link it needed went with it. #700 stays. */
+  t("A Good Day to Die is gone and #700 survives it",
+    !DATA.find(d=>d.id===708) && !!DATA.find(d=>d.id===700));
   const yotv1=DATA.find(d=>d.id===681);
   t("Year of the Villain #1 points at Hell Arisen, not an omnibus",
     !!yotv1 && (yotv1.overlap||[]).some(o=>o.id===651));
+  /* The nine duplicate ISBNs, approved 2026-09-08. Seven entries went; two kept
+     their entry but lost an ISBN that belonged to another book. */
+  const DUPGONE=[309,376,531,321,593,498,578];
+  t("the seven duplicate entries are gone", DUPGONE.every(id=>!DATA.find(d=>d.id===id)));
+  t("the entries they duplicated survive",
+    [251,548,388,322,609,605,623].every(id=>!!DATA.find(d=>d.id===id)));
+  t("nothing links to a dropped duplicate",
+    DATA.every(d=>(d.overlap||[]).every(o=>!DUPGONE.includes(o.id))));
+  t("#681 and #689 no longer hold another book's ISBN",
+    [681,689].every(id=>!DATA.find(d=>d.id===id).isbn_hint));
+  t("Deathstroke Vol. 7 is R.I.P., the volume that ISBN actually is",
+    DATA.find(d=>d.id===594).title==="Deathstroke Vol. 7: R.I.P.");
+  /* Zero month: thirteen New 52 trades open with the Sept 2012 #0 issue. Each
+     was verified against GCD before it was written. */
+  const ZERO=[64,75,76,95,109,111,119,127,145,167,170,172,263];
+  t("all thirteen zero-month ranges start at #0",
+    ZERO.every(id=>/^#0[,-]/.test(DATA.find(d=>d.id===id).issues)),
+    ZERO.filter(id=>!/^#0[,-]/.test(DATA.find(d=>d.id===id).issues)).join(","));
 
   console.log("\n== verified corrections");
   const ww=DATA.find(d=>d.id===438);
@@ -122,14 +140,16 @@
   t("and it is no longer flagged for verification", ww.confidence==="High", ww.confidence);
   t("the source of the correction is in the note", /dc\.com 2026-09-07/.test(ww.notes||""));
 
+  /* #531 was dropped as a duplicate of #388 on 2026-09-08; #388 inherited its
+     corrected range, so the assertion moves with it. #498 was dropped too. */
   const fixed={91:"#0, 8-13; Resurrection Man #9",375:"#13-18",379:"#13-26",
-    531:"Nightwing: Rebirth #1; #1-4, 7-8",665:"#74-81",667:"#76-81",
+    388:"Nightwing: Rebirth #1; #1-4, 7-8",665:"#74-81",667:"#76-81",
     670:"#53-57; Aquaman Annual #2"};
   t("all seven corrected ranges are in place",
     Object.keys(fixed).every(id=>DATA.find(d=>d.id===+id).issues===fixed[id]),
     Object.keys(fixed).filter(id=>DATA.find(d=>d.id===+id).issues!==fixed[id]).join(","));
   t("Nightwing Vol. 1 is retitled to the book its ISBN actually is",
-    DATA.find(d=>d.id===531).title==="Nightwing Vol. 1: Better Than Batman");
+    DATA.find(d=>d.id===388).title==="Nightwing Vol. 1: Better Than Batman");
   t("Deathstroke: Arkham is resolved with the right isbn",
     (()=>{const d=DATA.find(x=>x.id===609);
       return d.confidence==="High" && d.issues==="#36-40" && d.isbn_hint==="9781401294311";})());
@@ -138,20 +158,60 @@
       return d.issues==="#15-20; Green Lantern Corps Annual #1" && d.confidence==="High"
         && d.isbn_hint==="9781401247669" && /leagueofcomicgeeks/.test(d.notes);})());
   t("no entry is left flagged Verify among the original 11 suspects",
-    [91,136,375,379,438,498,531,609,665,667,670].every(id=>
+    [91,136,375,379,438,388,609,665,667,670].every(id=>
       DATA.find(d=>d.id===id).confidence!=="Verify"),
-    [91,136,375,379,438,498,531,609,665,667,670].filter(id=>
+    [91,136,375,379,438,388,609,665,667,670].filter(id=>
       DATA.find(d=>d.id===id).confidence==="Verify").join(","));
   t("every correction records its source and date",
-    [91,375,379,531,665,667,670,609,136,498,438].every(id=>
+    [91,375,379,665,667,670,609,136,438].every(id=>
       /2026-09-07/.test(DATA.find(d=>d.id===id).notes||"")));
 
   console.log("\n== new eras");
   const eras=[...new Set(DATA.map(d=>d.era))];
   t("three new eras exist", ["Infinite Frontier","Dawn of DC","DC All In"].every(e=>eras.includes(e)), eras.join("|"));
-  // 812 added, then 3 removed: they duplicated Batman entries already in the list
-  // 809 after the three duplicate Batman books came out, +1 for Batgirl: Family Business
-  t("810 entries", DATA.length===810, DATA.length);
+  /* 807: 810 minus #658 (duplicate of #694), plus #821 (Aquaman Vol. 4), minus
+     #165 Blue Beetle and #218 Stormwatch (pre-Flashpoint) and #184 Villains
+     Month (an event with no TPB) - all four dropped on Klaus's call 2026-09-08. */
+  /* 793: twelve dropped when Klaus cleared missing_isbn.csv, two added (Aquaman
+     Vol. 4, Red Lanterns Vol. 4), then seven more dropped as duplicate ISBNs. */
+  const GONE=[658,165,218,184,304,350,351,359,462,619,649,708,
+              309,376,531,321,593,498,578];
+  t("793 entries", DATA.length===793, DATA.length);
+  t("everything Klaus dropped is gone", GONE.every(id=>!DATA.find(d=>d.id===id)));
+  t("nothing links to any of them",
+    DATA.every(d=>(d.overlap||[]).every(o=>!GONE.includes(o.id))));
+  /* Red Lanterns is complete at six volumes and five of the six ranges were
+     wrong - Vol. 3 was carrying Vol. 4's issues. All six now come from GCD. */
+  t("Red Lanterns runs 1-6 with no Vol. 7",
+    (()=>{const rl=DATA.filter(d=>/^Red Lanterns Vol\./.test(d.title));
+      return rl.length===6 && !rl.some(d=>/Vol\. 7/.test(d.title));})(),
+    DATA.filter(d=>/^Red Lanterns Vol\./.test(d.title)).length+" volumes");
+  t("Red Lanterns ranges do not overlap",
+    (()=>{const want={21:"#1-7",90:"#8-12; Stormwatch #9",
+      209:"#0, 13-20; Green Lantern #20",822:"#21-26; Green Lantern Annual #2"};
+      return Object.keys(want).every(id=>DATA.find(d=>d.id===+id).issues===want[id]);})());
+  /* Eight ranges Klaus confirmed against DC's solicit text. GCD agreed with DC
+     on all seven it had data for, which is the strongest signal yet that the
+     reprint table is trustworthy where the list disagrees with it. */
+  t("the eight badly-wrong ranges are fixed",
+    (()=>{const want={173:"#19-30",108:"#0, 7-16",135:"#0, 13-20",59:"#13-23",
+      631:"#41-44, 47-50; Annual #1",192:"#25-34; Annual #1",558:"#19-28"};
+      return Object.keys(want).every(id=>DATA.find(d=>d.id===+id).issues===want[id]);})(),
+    Object.keys({173:0,108:0,135:0,59:0,631:0,192:0,558:0})
+      .map(id=>id+":"+DATA.find(d=>d.id===+id).issues).join(" | "));
+  t("StormWatch stops at four volumes",
+    DATA.filter(d=>/^Stormwatch Vol\./i.test(d.title)).length===4,
+    DATA.filter(d=>/^Stormwatch Vol\./i.test(d.title)).map(d=>d.title).join(" | "));
+  t("Legion of Super-Heroes Millennium collects the ongoing too",
+    (()=>{const d=DATA.find(x=>x.id===691);
+      return d.title==="Legion of Super-Heroes Vol. 1: Millennium" &&
+             /Legion of Super-Heroes #1-6/.test(d.issues);})());
+  t("Justice League Vol. 4: Endless was already right",
+    DATA.find(d=>d.id===550).issues==="#20-25");
+  t("Men of Tomorrow lost its invented volume number",
+    (()=>{const d=DATA.find(x=>x.id===236);
+      return d.title==="Superman: The Men of Tomorrow" &&
+             String(rec(236).isbn||d.isbn_hint)==="9781401258689";})());
   t("the duplicate Batman books are gone",
     [726,728,729].every(id=>!DATA.find(d=>d.id===id)));
   t("the originals they duplicated are still there",
@@ -159,12 +219,44 @@
   t("no two entries claim the same isbn",
     (()=>{const h=DATA.map(d=>d.isbn_hint).filter(Boolean);return new Set(h).size===h.length;})(),
     "duplicates present");
-  t("the two unfixable ISBNs were removed, not guessed",
-    [354,453].every(id=>{const d=DATA.find(x=>x.id===id);
-      return !d.isbn_hint && d.confidence==="Verify" && /WRONG ISBN REMOVED/.test(d.notes);}));
-  t("Detective Comics Arkham Knight pair is cross-linked",
-    (()=>{const a=DATA.find(d=>d.id===658),b=DATA.find(d=>d.id===694);
-      return (a.overlap||[]).some(o=>o.id===694) && (b.overlap||[]).some(o=>o.id===658);})());
+  /* Both "unfixable" ISBNs are now sourced: #453 is Superman: ACTION COMICS -
+     The Oz Effect, and #354 is Green Lantern CORPS: The Lost Army - GCD has the
+     latter and its reprint links confirm the contents. */
+  t("Lost Army is retitled and sourced",
+    (()=>{const d=DATA.find(x=>x.id===354);
+      return d.title==="Green Lantern Corps: The Lost Army" &&
+             String(rec(354).isbn||d.isbn_hint)==="9781401261269" &&
+             /Lost Army #1-6/.test(d.issues);})());
+  /* The whole point of pulling gcd_reprint: issue ranges are now sourced, not
+     guessed. Only the 11 collections GCD has no reprint links for stay blank. */
+  t("at most 11 entries still have a blank issue range",
+    DATA.filter(d=>!(d.issues||"").trim()).length<=11,
+    DATA.filter(d=>!(d.issues||"").trim()).length+" blank");
+  t("every filled range records where it came from",
+    DATA.filter(d=>/Issue list from GCD reprint records/.test(d.notes||""))
+        .every(d=>(d.issues||"").trim().length>0));
+  /* #658 WAS the duplicate half of that pair. Klaus confirmed #694 is the real
+     entry (it has the ISBN), so #658 is gone and nothing may still link to it. */
+  t("the duplicate Arkham Knight entry is gone",
+    !DATA.find(d=>d.id===658) && !!DATA.find(d=>d.id===694));
+  t("nothing links to the dropped duplicate",
+    DATA.every(d=>(d.overlap||[]).every(o=>o.id!==658)));
+  /* Aquaman restarts at Vol. 1 after Rebirth Vol. 6 - there is no Vol. 7/8/9
+     and no "Kingdom". */
+  t("the DeConnick Aquaman run is numbered 1-4",
+    ["Aquaman Vol. 1: Unspoken Water (2019 renumbering)","Aquaman Vol. 2: Amnesty",
+     "Aquaman Vol. 3: Manta vs. Machine (2019 renumbering)",
+     "Aquaman Vol. 4: Echoes of a Life Lived Well"]
+      .every(t2=>DATA.some(d=>d.title===t2)));
+  t("no invented Aquaman Kingdom is left", !DATA.some(d=>/Aquaman.*Kingdom/.test(d.title)));
+  t("Preludes to the Wedding is plural and has its ISBN",
+    (()=>{const d=DATA.find(x=>x.id===489);
+      return d.title==="Batman: Preludes to the Wedding" &&
+             String(rec(489).isbn||d.isbn_hint)==="9781401286545";})());
+  t("the Oz Effect carries its Action Comics title and ISBN",
+    (()=>{const d=DATA.find(x=>x.id===453);
+      return /Action Comics - The Oz Effect/.test(d.title) &&
+             String(rec(453).isbn||d.isbn_hint)==="9781401287863";})());
   /* "new entry" means an entry I ADDED (id >= 724), not an entry that happens
      to sit in one of the three new eras. Once era was re-derived from the
      original issues' cover dates, older books moved into Infinite Frontier and
@@ -198,8 +290,13 @@
   /* This used to check isbn_hint only, so #178 and #184 shared an ISBN for a
      day - theirs lived in details.json. Check the effective ISBN instead:
      whatever rec() ends up with after the import. */
+  /* WARNING: this runs against the details.json FIXTURE below, not the real
+     file. It therefore CANNOT see a duplicate that lives only in the real
+     details.json - and nine did, for weeks, while this suite said 146/146.
+     The real-file version of this check is check_data.py, which must be run
+     alongside boot_check.js before any deploy. Do not delete that script. */
   const eff=DATA.map(d=>String(rec(d.id).isbn||d.isbn_hint||"")).filter(Boolean);
-  t("no two entries share an ISBN, from either source",
+  t("no two entries share an ISBN, from either source (FIXTURE ONLY)",
     new Set(eff).size===eff.length,
     (()=>{const c={};eff.forEach(k=>c[k]=(c[k]||0)+1);
       return Object.keys(c).filter(k=>c[k]>1).join(",")||"none";})());
@@ -335,9 +432,10 @@
   t("the six provable ISBNs are in",
     Object.keys(found).every(id=>DATA.find(d=>d.id===+id).isbn_hint===found[id]),
     Object.keys(found).filter(id=>DATA.find(d=>d.id===+id).isbn_hint!==found[id]).join(","));
-  t("no ISBN was invented for Prelude to the Wedding",
-    !DATA.find(d=>d.id===489).isbn_hint &&
-    /NO COLLECTED EDITION/.test(DATA.find(d=>d.id===489).notes));
+  /* The collection was there all along under the plural spelling - see the
+     Preludes test above. What must never come back is the wrong ISBN. */
+  t("Preludes to the Wedding did not take the Wedding's ISBN",
+    DATA.find(d=>d.id===489).isbn_hint!=="9781401283384");
   t("it did not steal the Wedding's ISBN",
     DATA.find(d=>d.id===489).isbn_hint!=="9781401283384");
   t("every ISBN in the list is still unique",
@@ -365,10 +463,11 @@
   t("four more hardcovers swapped for their paperbacks",
     Object.keys(swaps).every(id=>DATA.find(d=>d.id===+id).isbn_hint===swaps[id]),
     Object.keys(swaps).filter(id=>DATA.find(d=>d.id===+id).isbn_hint!==swaps[id]).join(","));
-  t("Villains Month no longer borrows Forever Evil's ISBN",
-    !DATA.find(d=>d.id===184).isbn_hint &&
-    /DUPLICATE ISBN REMOVED/.test(DATA.find(d=>d.id===184).notes));
-  t("Forever Evil keeps it", DATA.find(d=>d.id===178).isbn_hint==="9781401248918");
+  // #184 is gone entirely now, so the only thing left to guard is that no one
+  // else ever takes Forever Evil's ISBN.
+  t("Forever Evil keeps its ISBN", DATA.find(d=>d.id===178).isbn_hint==="9781401248918");
+  t("nobody else claims it",
+    DATA.filter(d=>String(rec(d.id).isbn||d.isbn_hint)==="9781401248918").length===1);
 
   console.log("\n== tap a series to filter by it");
   const doc4=require("fs").readFileSync(process.env.LB_HTML,"utf8");
