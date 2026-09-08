@@ -77,35 +77,20 @@
   setSelMode(false);
   t("leaving the mode clears the selection", picked.size===0 && selBox(5)==="");
 
-  console.log("\n== data-quality filter");
-  const isbnSel=document.getElementById("fIsbn");
-  const q=document.getElementById("q"); q.value="";
-  ["fEra","fPhase","fPrio","fOwn","fStatus","fEvent","fSeries","fScore","qc"]
-    .forEach(i=>{document.getElementById(i).value="";});
-  isbnSel.value="";
-  const all=DATA.filter(pass).length;
-  t("no filter passes everything", all===DATA.length, all+" of "+DATA.length);
-  // rec() reads state, so give two entries an isbn and one a short page count
-  state[201]=Object.assign(rec(201),{isbn:"9780000000201"});   // fake, must not collide
-  state[202]=Object.assign(rec(202),{isbn:"9780000000202",pages:32});  // fake
-  // entry 1 also carries an isbn from the import test above, so compare against
-  // what state actually holds rather than a hardcoded count
-  const expect=DATA.filter(d=>rec(d.id).isbn).map(d=>d.id).sort((a,b)=>a-b);
-  isbnSel.value="yes";
-  const withIsbn=DATA.filter(pass).map(d=>d.id).sort((a,b)=>a-b);
-  t("Has an ISBN matches exactly the entries that have one",
-    withIsbn.join()===expect.join() && withIsbn.includes(201) && withIsbn.includes(202),
-    withIsbn.join(",")+" vs "+expect.join(","));
-  isbnSel.value="no";
-  t("No ISBN is the exact complement",
-    DATA.filter(pass).length===DATA.length-expect.length);
-  isbnSel.value="thin";
-  const thin=DATA.filter(pass).map(d=>d.id);
-  t("Suspect under 60pp finds the 32pp entry", thin.length===1 && thin[0]===202, thin.join(","));
-  isbnSel.value="";
-  t("clearing it restores the full list", DATA.filter(pass).length===DATA.length);
-  t("it counts as an active filter", (isbnSel.value="no", activeFilterCount()>=1));
-  isbnSel.value="";
+  console.log("\n== the Any data filter was removed");
+  const doc0=require("fs").readFileSync(process.env.LB_HTML,"utf8");
+  /* Klaus dropped it: the gaps it exposed are now tracked in
+     verify_pass_report.txt, not in the app. The control, its pass() branch
+     and its entry in every filter id list all had to go together. */
+  t("the Any data select is gone from the markup", !/id="fIsbn"/.test(doc0));
+  t("pass() no longer reads it", !/getElementById\("fIsbn"\)/.test(doc0));
+  t("no orphan ib branch left in pass()", !/\bib===/.test(doc0));
+  ["fEra","fPhase","fPrio","fEvent","fSeries","fScore","q","qc"]
+    .forEach(i=>{const e=document.getElementById(i); if(e) e.value="";});
+  fOwnSel.clear(); fStatusSel.clear();
+  t("no filter passes everything", DATA.filter(pass).length===DATA.length,
+    DATA.filter(pass).length+" of "+DATA.length);
+
 
   console.log("\n== era and overlap corrections");
   const bl=[512,515,574,659,664,674,675,677].map(id=>DATA.find(d=>d.id===id));
@@ -180,15 +165,21 @@
   t("Detective Comics Arkham Knight pair is cross-linked",
     (()=>{const a=DATA.find(d=>d.id===658),b=DATA.find(d=>d.id===694);
       return (a.overlap||[]).some(o=>o.id===694) && (b.overlap||[]).some(o=>o.id===658);})());
-  const nw=DATA.filter(d=>["Infinite Frontier","Dawn of DC","DC All In"].includes(d.era));
+  /* "new entry" means an entry I ADDED (id >= 724), not an entry that happens
+     to sit in one of the three new eras. Once era was re-derived from the
+     original issues' cover dates, older books moved into Infinite Frontier and
+     DC All In - and they have no isbn_hint (their ISBN lives in details.json),
+     so filtering by era made three of these guards fail on correct data. */
+  const nw=DATA.filter(d=>d.id>=724 && d.id<=819);   // the GCD sweep batch
+  // #820+ came from Klaus's own cover photos, not the sweep - different source.
   t("every new entry carries a GCD isbn hint", nw.every(d=>/^97[89]\d{10}$/.test(d.isbn_hint||"")));
   // an entry whose contents GCD could confirm is High, not Verify
   t("new entries are Verify unless their contents were confirmed",
     nw.every(d=>d.confidence==="Verify" || (d.issues||"").length>0),
     nw.filter(d=>d.confidence!=="Verify" && !(d.issues||"").length).map(d=>d.id).join(","));
   t("every new entry records where it came from", nw.every(d=>/GCD collected editions/.test(d.notes||"")));
-  // 9 in the three new eras; Endless Winter is the 10th but sits in Rebirth
-  t("hardcover fallbacks say so", nw.filter(d=>/hardcover/.test(d.notes)).length===9,
+  // 10 in the batch, Endless Winter (#805) included - it sits in Rebirth
+  t("hardcover fallbacks say so", nw.filter(d=>/hardcover/.test(d.notes)).length===10,
     nw.filter(d=>/hardcover/.test(d.notes)).length+" flagged");
   t("Absolute Edition reprints were NOT pulled in",
     !DATA.some(d=>/Red Son|Arkham Asylum|for All Seasons|Three Jokers/i.test(d.title) && d.era==="DC All In"));
@@ -249,8 +240,14 @@
   t("one width token for every control", /\.controls\{--cw:/.test(doc));
   t("no one-off inline width left on the creator search",
     !/id="qc"[^>]*style=/.test(doc));
-  t("fIsbn is wired to the render listener (the bug that made it do nothing)",
-    /"fScore","fIsbn"\]\.forEach\(id=>\s*\n?\s*document\.getElementById\(id\)\.addEventListener\("input",render\)/.test(doc));
+  t("every select is wired to the render listener",
+    /"q","qc","fEra","fPhase","fPrio","fEvent","fSeries","fScore"\]\.forEach\(id=>\s*\n?\s*document\.getElementById\(id\)\.addEventListener\("input",render\)/.test(doc));
+  /* Klaus's order: era + reading phase + storyline bundled, then priority,
+     then series and rating, then the owned/read chips, then the text boxes. */
+  t("filter bar is in the requested order",
+    /id="fEra"[\s\S]*?id="fPhase"[\s\S]*?id="fEvent"[\s\S]*?id="fPrio"[\s\S]*?id="fSeries"[\s\S]*?id="fScore"[\s\S]*?id="gOwn"[\s\S]*?id="gStatus"[\s\S]*?id="q" type="search"[\s\S]*?id="qc" type="search"[\s\S]*?<div class="tail">/.test(doc));
+  t("the chips sit after rating, not before storyline",
+    doc.indexOf('id="gOwn"') > doc.indexOf('id="fScore"'));
   t("both text filters sit last, just before the tail",
     /id="q" type="search"[\s\S]{0,140}id="qc" type="search"[\s\S]{0,160}<div class="tail">/.test(doc));
   t("Fill covers from ISBNs button removed", !/id="fromisbn"/.test(doc));
@@ -288,7 +285,7 @@
     eraCls("DC All In")==="allin" && eraCls("Rebirth")==="reb");
 
   console.log("\n== own and status take several values at once");
-  ["q","qc","fEra","fPhase","fPrio","fEvent","fSeries","fScore","fIsbn"]
+  ["q","qc","fEra","fPhase","fPrio","fEvent","fSeries","fScore"]
     .forEach(i=>{const e=document.getElementById(i); if(e) e.value="";});
   fOwnSel.clear(); fStatusSel.clear();
   const baseAll=DATA.filter(pass).length;
@@ -381,7 +378,7 @@
   t("selection mode suppresses it", /if\(!a \|\| selMode\) return;/.test(doc4));
   const fs2=document.getElementById("fSeries");
   fs2.value=""; fOwnSel.clear(); fStatusSel.clear();
-  ["q","qc","fEra","fPhase","fPrio","fEvent","fScore","fIsbn"].forEach(i2=>{
+  ["q","qc","fEra","fPhase","fPrio","fEvent","fScore"].forEach(i2=>{
     const e2=document.getElementById(i2); if(e2) e2.value="";});
   // the filter itself must work once a series is chosen
   const someSeries=DATA.find(d=>d.series==="Batgirl").series;
