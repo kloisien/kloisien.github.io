@@ -172,11 +172,12 @@
   /* 807: 810 minus #658 (duplicate of #694), plus #821 (Aquaman Vol. 4), minus
      #165 Blue Beetle and #218 Stormwatch (pre-Flashpoint) and #184 Villains
      Month (an event with no TPB) - all four dropped on Klaus's call 2026-09-08. */
-  /* 793: twelve dropped when Klaus cleared missing_isbn.csv, two added (Aquaman
-     Vol. 4, Red Lanterns Vol. 4), then seven more dropped as duplicate ISBNs. */
+  /* 796: twelve dropped when Klaus cleared missing_isbn.csv, two added (Aquaman
+     Vol. 4, Red Lanterns Vol. 4), seven dropped as duplicate ISBNs, then the
+     three missing New Guardians volumes added. */
   const GONE=[658,165,218,184,304,350,351,359,462,619,649,708,
               309,376,531,321,593,498,578];
-  t("793 entries", DATA.length===793, DATA.length);
+  t("796 entries", DATA.length===796, DATA.length);
   t("everything Klaus dropped is gone", GONE.every(id=>!DATA.find(d=>d.id===id)));
   t("nothing links to any of them",
     DATA.every(d=>(d.overlap||[]).every(o=>!GONE.includes(o.id))));
@@ -243,11 +244,14 @@
     DATA.every(d=>(d.overlap||[]).every(o=>o.id!==658)));
   /* Aquaman restarts at Vol. 1 after Rebirth Vol. 6 - there is no Vol. 7/8/9
      and no "Kingdom". */
+  /* The "(2019 renumbering)" suffix in the title was a workaround for two
+     volumes sharing a number. The series label carries that now, so the titles
+     match DC's spines. */
   t("the DeConnick Aquaman run is numbered 1-4",
-    ["Aquaman Vol. 1: Unspoken Water (2019 renumbering)","Aquaman Vol. 2: Amnesty",
-     "Aquaman Vol. 3: Manta vs. Machine (2019 renumbering)",
+    ["Aquaman Vol. 1: Unspoken Water","Aquaman Vol. 2: Amnesty",
+     "Aquaman Vol. 3: Manta vs. Machine",
      "Aquaman Vol. 4: Echoes of a Life Lived Well"]
-      .every(t2=>DATA.some(d=>d.title===t2)));
+      .every(t2=>DATA.some(d=>d.title===t2 && d.series==="Aquaman (2019)")));
   t("no invented Aquaman Kingdom is left", !DATA.some(d=>/Aquaman.*Kingdom/.test(d.title)));
   t("Preludes to the Wedding is plural and has its ISBN",
     (()=>{const d=DATA.find(x=>x.id===489);
@@ -518,6 +522,51 @@
   t("the first column shows the position, not the id",
     /class="c-ord" title="entry #\$\{d\.id\}">\$\{selBox\(d\.id\)\}\$\{ord\(d\)\}/.test(doc5));
   t("the drawer still shows the internal id", /id \$\{d\.id\}/.test(doc5));
+
+  console.log("\n== volume numbers and series labels");
+  /* Klaus spotted two entries both labelled "Vol. 1" with different titles. The
+     series field was not telling two RUNS apart, so DC's restarts collided -
+     sixteen times, worst of all Detective Comics, which had three runs sharing
+     one label and therefore three Vol. 1 through Vol. 6. */
+  t("no series has two different books at the same volume number",
+    (()=>{const seen={},bad=[];
+      DATA.forEach(d=>{const m=/\bVol\.?\s*(\d+)\b/i.exec(d.title); if(!m) return;
+        const k=d.series+"|"+m[1], norm=d.title.replace(/\bvol\.?\s*\d+\b/ig," ")
+          .toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/).join(" ");
+        if(seen[k]&&seen[k]!==norm) bad.push(k); else seen[k]=norm;});
+      window.__volBad=bad; return bad.length===0;})(),
+    (window.__volBad||[]).join(" ; "));
+  t("the Detective Comics runs have their own labels",
+    ["Detective Comics (New 52)","Detective Comics (Rebirth)",
+     "Batman: Detective Comics (Tomasi)","Batman: Detective Comics (Tamaki)",
+     "Batman: Detective Comics (Ram V)"].every(s2=>DATA.some(d=>d.series===s2)));
+  t("no entry is left on the bare 'Detective Comics' label except the #1000 one-shot",
+    DATA.filter(d=>d.series==="Detective Comics").every(d=>/#1000/.test(d.title)));
+  t("the DeConnick Aquaman run is its own series",
+    DATA.filter(d=>d.series==="Aquaman (2019)").length===4 &&
+    DATA.filter(d=>d.series==="Aquaman (Rebirth)").length===6);
+  t("the renumbering suffix is gone from the Aquaman titles",
+    !DATA.some(d=>/renumbering/.test(d.title)));
+  /* The complete six-volume New Guardians run, from Klaus's LoCG shelf. The
+     list had 1, 2 and 5 - and 5 was labelled 4. */
+  t("New Guardians runs 1-6 under one series label",
+    (()=>{const ng=DATA.filter(d=>d.series==="Green Lantern: New Guardians");
+      return ng.length===6 && [1,2,3,4,5,6].every(n=>
+        ng.some(d=>new RegExp("Vol\\. "+n+":").test(d.title)));})(),
+    DATA.filter(d=>d.series==="Green Lantern: New Guardians").length+" volumes");
+  t("The Godkillers is Vol. 5 and collects #28-34",
+    (()=>{const d=DATA.find(x=>x.id===207);
+      return /Vol\. 5: The Godkillers/.test(d.title) && /#28-34/.test(d.issues);})());
+  t("the zero issue is in Vol. 3, not Vol. 2",
+    /^#0, 13-20/.test(DATA.find(d=>d.id===823).issues) &&
+    !/#0/.test(DATA.find(d=>d.id===89).issues));
+  t("no GL shorthand left in the New Guardians titles",
+    !DATA.some(d=>/^GL: New Guardians/.test(d.title)));
+  /* Four entries deliberately keep a number DC did not print, so the list can
+     be read straight through a restart. Each one says so in its note. */
+  t("the deliberate continuous numbers are all documented",
+    [269,820,339,320,665].every(id=>/NUMBERING|printed/i.test(DATA.find(d=>d.id===id).notes||"")),
+    [269,820,339,320,665].filter(id=>!/NUMBERING|printed/i.test(DATA.find(d=>d.id===id).notes||"")).join(","));
 
   console.log("\n== tap a series to filter by it");
   const doc4=require("fs").readFileSync(process.env.LB_HTML,"utf8");
