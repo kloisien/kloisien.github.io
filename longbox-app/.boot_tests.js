@@ -174,12 +174,12 @@
   /* 807: 810 minus #658 (duplicate of #694), plus #821 (Aquaman Vol. 4), minus
      #165 Blue Beetle and #218 Stormwatch (pre-Flashpoint) and #184 Villains
      Month (an event with no TPB) - all four dropped on Klaus's call 2026-09-08. */
-  /* 796: twelve dropped when Klaus cleared missing_isbn.csv, two added (Aquaman
-     Vol. 4, Red Lanterns Vol. 4), seven dropped as duplicate ISBNs, then the
-     three missing New Guardians volumes added. */
+  /* 815: the running total. Last moves - #114 Batman: Death of the Family
+     (companion collection) dropped because it does not exist, and 20 volumes
+     added to close the holes the gap checker found. */
   const GONE=[658,165,218,184,304,350,351,359,462,619,649,708,
-              309,376,531,321,593,498,578];
-  t("796 entries", DATA.length===796, DATA.length);
+              309,376,531,321,593,498,578,114];
+  t("817 entries", DATA.length===817, DATA.length);
   t("everything Klaus dropped is gone", GONE.every(id=>!DATA.find(d=>d.id===id)));
   t("nothing links to any of them",
     DATA.every(d=>(d.overlap||[]).every(o=>!GONE.includes(o.id))));
@@ -616,6 +616,59 @@
   t("newestStamp finds the latest change", newestStamp(state)===9000, String(newestStamp(state)));
   t("entryCount ignores the probe key", entryCount({1:{},2:{},__test:{}})===2);
   state = JSON.parse(keep);
+
+  console.log("\n== no more holes in the middle of a run");
+  /* Klaus filtered to Justice League (Rebirth) and got Vol. 1, 4, 5, 6, 7.
+     The gap checker found 16 series like that; 20 volumes were added. */
+  t("every series runs without a gap, bar the three known exceptions",
+    (()=>{const bad=[];
+      const by={};
+      DATA.forEach(d=>{const m=/\bVol\.?\s*(\d+)\b/i.exec(d.title); if(!m) return;
+        (by[d.series]=by[d.series]||[]).push(+m[1]);});
+      Object.keys(by).forEach(s2=>{
+        const v=by[s2]; if(v.length<2) return;
+        const lo=Math.min.apply(null,v), hi=Math.max.apply(null,v);
+        for(let n=lo;n<=hi;n++) if(v.indexOf(n)<0) bad.push(s2+" Vol. "+n);});
+      window.__gapBad=bad;
+      /* Batman (Tynion) 2 and Deathstroke 6 are in the list under other titles. */
+      /* Only two left, and both books ARE in the list, under another title. */
+      const allowed=["Batman (Tynion) Vol. 2","Deathstroke (Rebirth) Vol. 6"];
+      return bad.every(x=>allowed.indexOf(x)>=0);})(),
+    (window.__gapBad||[]).join(" ; "));
+  t("Justice League Rebirth is complete 1-7",
+    (()=>{const v=DATA.filter(d=>d.series==="Justice League (Rebirth)")
+            .map(d=>+(/\bVol\.?\s*(\d+)/i.exec(d.title)||[0,0])[1]).filter(Boolean);
+      return [1,2,3,4,5,6,7].every(n=>v.indexOf(n)>=0);})());
+  /* GCD recorded Harley Quinn Vol. 2 and Vol. 4 under one ISBN. Klaus's LoCG
+     numbers separated them: Vol. 4 is 9781401275266, not Vol. 2's number. */
+  t("Harley Quinn Rebirth is complete 1-6 with distinct ISBNs",
+    (()=>{const v=DATA.filter(d=>d.series==="Harley Quinn (Rebirth)");
+      const ns=v.map(d=>+(/\bVol\.?\s*(\d+)/i.exec(d.title)||[0,0])[1]).filter(Boolean);
+      const is=v.map(d=>String(rec(d.id).isbn||d.isbn_hint||"")).filter(Boolean);
+      return [1,2,3,4,5,6].every(n=>ns.indexOf(n)>=0) && new Set(is).size===is.length;})(),
+    DATA.filter(d=>d.series==="Harley Quinn (Rebirth)").length+" volumes");
+  t("Surprise, Surprise does not carry Joker Loves Harley's ISBN",
+    (()=>{const d=DATA.find(x=>/Surprise, Surprise/.test(x.title));
+      return d && String(rec(d.id).isbn||d.isbn_hint)==="9781401275266";})());
+  t("Green Lantern Corps is complete 1-6",
+    (()=>{const v=DATA.filter(d=>d.series==="Green Lantern Corps")
+            .map(d=>+(/\bVol\.?\s*(\d+)/i.exec(d.title)||[0,0])[1]).filter(Boolean);
+      return [1,2,3,4,5,6].every(n=>v.indexOf(n)>=0);})());
+  /* Superman restarts at Vol. 1 with Before Truth - the list used to number
+     straight through and call it Vol. 7. */
+  t("the 2016 Superman line is its own series, numbered 1-2",
+    (()=>{const v=DATA.filter(d=>d.series==="Superman (2016)");
+      return v.length===2 && v.some(d=>/Vol\. 1: Before Truth/.test(d.title))
+                          && v.some(d=>/Vol\. 2: Return to Glory/.test(d.title));})(),
+    DATA.filter(d=>d.series==="Superman (2016)").map(d=>d.title).join(" | "));
+  /* "Superman Vol. 7: Bizarroverse" is a real Vol. 7 of the Rebirth run - the
+     one that had to go was Before Truth mislabelled as Vol. 7. */
+  t("Before Truth is no longer called Vol. 7",
+    !DATA.some(d=>/Vol\. 7/.test(d.title) && /Before Truth/.test(d.title)));
+  t("every added volume records its source",
+    DATA.filter(d=>d.id>=826).every(d=>/GCD series/.test(d.notes||"")));
+  t("every added volume has an issue list and a date",
+    DATA.filter(d=>d.id>=826).every(d=>(d.issues||"").trim() && (d.mdate||"").trim()));
 
   console.log("\n== tap a series to filter by it");
   const doc4=require("fs").readFileSync(process.env.LB_HTML,"utf8");
