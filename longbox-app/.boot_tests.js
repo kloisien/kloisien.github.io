@@ -229,8 +229,9 @@
     ev.filter(tt=>/is the hardcover/.test((DATA.find(d=>d.title===tt)||{}).notes||"")).length===5);
   t("Flashpoint Beyond is not flagged hardcover (it has a TP)",
     !/is the hardcover/.test(DATA.find(d=>d.title==="Flashpoint Beyond").notes));
+  // 11 since DC Rebirth Omnibus joined them - GCD indexes no paperback for it
   t("every hardcover fallback in the whole list is flagged",
-    DATA.filter(d=>/is the hardcover/.test(d.notes||"")).length===10,
+    DATA.filter(d=>/is the hardcover/.test(d.notes||"")).length===11,
     DATA.filter(d=>/is the hardcover/.test(d.notes||"")).length+" flagged");
 
   console.log("\n== control bar layout");
@@ -260,6 +261,86 @@
   t("hidden again when scrolled back", (window.scrollY=10, syncGoTop(), !gt.classList.contains("on")));
   t("it clears the selection bar rather than hiding under it",
     /\.gotop\{[^}]*bottom:70px/.test(doc) && /\.selbar\{[^}]*bottom:0/.test(doc));
+
+  console.log("\n== one badge only, events only");
+  const withOrder=DATA.filter(d=>orderBadge(d)!=="");
+  const anyReadorder=DATA.filter(d=>(d.readorder||[]).length);
+  t("the order badge is limited to events and crossovers",
+    withOrder.every(d=>d.kind==="Event"||d.kind==="Crossover"),
+    withOrder.filter(d=>!["Event","Crossover"].includes(d.kind)).length+" leaked");
+  t("it is a real subset of everything that has a reading order",
+    withOrder.length>0 && withOrder.length<anyReadorder.length,
+    withOrder.length+" of "+anyReadorder.length);
+  const rows=DATA.slice(0,400).map(d=>rowHTML(view(d))).join("");
+  t("no overlap badge in any row", !/>overlap</.test(rows));
+  t("no conflict badge in any row", !/>conflict</.test(rows));
+  t("no edited badge in any row", !/>edited</.test(rows));
+  t("the order badge does appear somewhere",
+    /title="Has an issue-level reading order"/.test(DATA.filter(d=>orderBadge(d)).map(d=>rowHTML(view(d))).join("")));
+  t("the new eras get their own colour class",
+    eraCls("Infinite Frontier")==="inf" && eraCls("Dawn of DC")==="dawn" &&
+    eraCls("DC All In")==="allin" && eraCls("Rebirth")==="reb");
+
+  console.log("\n== own and status take several values at once");
+  ["q","qc","fEra","fPhase","fPrio","fEvent","fSeries","fScore","fIsbn"]
+    .forEach(i=>{const e=document.getElementById(i); if(e) e.value="";});
+  fOwnSel.clear(); fStatusSel.clear();
+  const baseAll=DATA.filter(pass).length;
+  state[301]=Object.assign(rec(301),{own:"Owned",status:"Read"});
+  state[302]=Object.assign(rec(302),{own:"Wishlist",status:"Unread"});
+  state[303]=Object.assign(rec(303),{own:"",status:"Reading"});
+  fOwnSel.add("Owned");
+  const onlyOwned=DATA.filter(pass).map(d=>d.id);
+  t("one value filters", onlyOwned.length>=1 && onlyOwned.includes(301) && !onlyOwned.includes(302));
+  fOwnSel.add("Wishlist");
+  const both=DATA.filter(pass).map(d=>d.id);
+  t("two values are an OR, not an AND",
+    both.includes(301) && both.includes(302) && both.length>onlyOwned.length,
+    both.length+" vs "+onlyOwned.length);
+  t("an entry with no ownership is reachable via Not owned",
+    (fOwnSel.clear(), fOwnSel.add("__none"), DATA.filter(pass).map(d=>d.id).includes(303)));
+  fOwnSel.clear();
+  fStatusSel.add("Read"); fStatusSel.add("Reading");
+  const st=DATA.filter(pass).map(d=>d.id);
+  t("status is multi-select too", st.includes(301) && st.includes(303) && !st.includes(302));
+  t("both count as active filters",
+    (fOwnSel.add("Owned"), activeFilterCount()>=2), activeFilterCount());
+  document.getElementById("reset")&&null;
+  fOwnSel.clear(); fStatusSel.clear();
+  t("clearing them restores every entry", DATA.filter(pass).length===baseAll, DATA.filter(pass).length+" vs "+baseAll);
+  const doc2=require("fs").readFileSync(process.env.LB_HTML,"utf8");
+  t("the old single-value selects are gone",
+    !/id="fOwn"/.test(doc2) && !/id="fStatus"/.test(doc2));
+  t("chip groups are in the markup",
+    /id="gOwn"/.test(doc2) && /id="gStatus"/.test(doc2) && /data-fown=/.test(doc2));
+
+  console.log("\n== drawer no longer sits under the floating bar");
+  openDrawer(1);
+  t("opening the drawer marks the body", document.body.classList.contains("drawer-open"));
+  closeDrawer();
+  t("closing it clears the mark", !document.body.classList.contains("drawer-open"));
+  t("the css hides the bar and the button while it is open",
+    /body\.drawer-open \.selbar, body\.drawer-open \.gotop\{display:none !important\}/.test(doc2));
+
+  console.log("\n== labels and the last ISBN sweep");
+  const doc3=require("fs").readFileSync(process.env.LB_HTML,"utf8");
+  t("the phase filter says Reading phase", /All reading phases/.test(doc3) && !/All phases</.test(doc3));
+  t("the event filter says Storyline", /All storylines/.test(doc3) && !/All events</.test(doc3));
+  t("the table column says Storyline", /class="h-ev">Storyline/.test(doc3));
+  const found={55:"9781401234829",423:"9781401267421",518:"9781401274795",
+               519:"9781401276058",592:"9781779516398",595:"9781401291174"};
+  t("the six provable ISBNs are in",
+    Object.keys(found).every(id=>DATA.find(d=>d.id===+id).isbn_hint===found[id]),
+    Object.keys(found).filter(id=>DATA.find(d=>d.id===+id).isbn_hint!==found[id]).join(","));
+  t("no ISBN was invented for Prelude to the Wedding",
+    !DATA.find(d=>d.id===489).isbn_hint &&
+    /NO COLLECTED EDITION/.test(DATA.find(d=>d.id===489).notes));
+  t("it did not steal the Wedding's ISBN",
+    DATA.find(d=>d.id===489).isbn_hint!=="9781401283384");
+  t("every ISBN in the list is still unique",
+    (()=>{const h=DATA.map(d=>d.isbn_hint).filter(Boolean);return new Set(h).size===h.length;})());
+  t("the malformed GCD ISBN was cleaned to 13 digits",
+    /^97[89]\d{10}$/.test(DATA.find(d=>d.id===595).isbn_hint));
 
   console.log("\n== import feedback");
   const im=document.getElementById("importMsg");
