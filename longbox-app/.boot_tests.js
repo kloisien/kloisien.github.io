@@ -25,7 +25,13 @@
   console.log("\n== render-time fallback");
   const d1=view(DATA.find(x=>x.id===1));
   const list=coverList(d1);
-  t("list is dead-then-candidate", list[0]===DEAD&&list.indexOf(GCD)>0, JSON.stringify(list));
+  /* Since 2026-09-11 every entry with a file on disk also carries
+     cover:"covers/<id>.jpg" in DATA, so the chain is: your own per-device
+     choice, then the bundled local file, then whatever candidates an import
+     supplied. The local file sits in the middle on purpose - it cannot 403 or
+     expire, so it should be tried before any third-party url. */
+  t("list is dead-then-local-then-candidate",
+    list[0]===DEAD && list[1]==="covers/1.jpg" && list.indexOf(GCD)>1, JSON.stringify(list));
   const html=coverIMG(d1);
   t("img wired to coverErr", /onerror="coverErr\(this\)"/.test(html));
   t("img starts on the imported url", html.includes(DEAD.replace(/&/g,"&amp;")));
@@ -33,10 +39,12 @@
   const img={ dataset:{cid:"1"}, src:DEAD, parentNode:{}, outerHTML:"",
               getAttribute(k){return k==="src"?this.src:null}, remove(){this.removed=true} };
   coverErr(img);
-  t("first failure falls through to GCD", img.src===GCD, img.src);
+  t("first failure falls through to the bundled file", img.src==="covers/1.jpg", img.src);
   coverErr(img);
-  t("second failure lands on the spine", /class="spine"/.test(img.outerHTML), img.outerHTML.slice(0,60));
-  t("bad urls remembered", coverBad.has(DEAD)&&coverBad.has(GCD));
+  t("second failure falls through to GCD", img.src===GCD, img.src);
+  coverErr(img);
+  t("third failure lands on the spine", /class="spine"/.test(img.outerHTML), img.outerHTML.slice(0,60));
+  t("bad urls remembered", coverBad.has(DEAD)&&coverBad.has(GCD)&&coverBad.has("covers/1.jpg"));
   t("coverList now empty for that entry", coverList(view(DATA.find(x=>x.id===1))).length===0);
   t("cardHTML renders a spine when nothing loads", /class="spine"/.test(cardHTML(view(DATA.find(x=>x.id===1)))));
 
@@ -313,10 +321,12 @@
   t("no separate Death of the Justice League entry was invented",
     DATA.filter(d=>/^justice league: death of/i.test(d.title)).length===0);
   // the list already had 9 Rebirth-era Titans books, so count by the new ids
-  const tt=DATA.filter(d=>d.id>=806 && /^Titans/.test(d.title));
+  /* Count by id, not by title: #810 was published as "DC K.O.: Titans", so a
+     /^Titans/ regex silently dropped it the moment the title was corrected. */
+  const TITANS_NEW=[806,807,808,809,810,811,812];
+  const tt=DATA.filter(d=>TITANS_NEW.indexOf(d.id)>=0);
   t("seven Titans books added on top of the nine already there",
-    tt.length===7 && DATA.filter(d=>/^Titans/.test(d.title)).length===16,
-    tt.length+" new, "+DATA.filter(d=>/^Titans/.test(d.title)).length+" total");
+    tt.length===7, tt.length+" of the seven new ids present");
   const ew=DATA.find(d=>/Endless Winter/.test(d.title));
   t("Endless Winter is in, flagged as hardcover-only",
     !!ew && /hardcover/.test(ew.notes) && ew.era==="Rebirth");
