@@ -1,13 +1,8 @@
-/* Long Box service worker - build 2026-09-08.54
+/* Long Box service worker - build 2026-09-04.34
    The page itself is fetched network-first so that uploading a new build takes
    effect on the next load. Only assets and cover images are cache-first. */
-const SHELL = "longbox-shell-2026-09-08-98";
-/* Bumped to v2 deliberately. A cross-origin <img> fetch is no-cors, so the
-   response here is opaque: status 0, indistinguishable from a 200. The check
-   below therefore cached today's expired-ISBNdb 403s as if they were covers.
-   Renaming the cache drops every poisoned entry on activate. The page evicts
-   individual failures via caches.delete() in coverErr(). */
-const IMGS  = "longbox-imgs-v2";
+const SHELL = "longbox-shell-2026-09-04-34";
+const IMGS  = "longbox-imgs-v1";
 const ASSETS = ["./manifest.json","./icon-180.png","./icon-192.png","./icon-512.png"];
 
 self.addEventListener("install", e => {
